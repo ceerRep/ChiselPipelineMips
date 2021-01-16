@@ -4,76 +4,62 @@ import chisel3._
 import chisel3.util._
 import mips.modules.{ALU, MDU}
 import mips.util.BypassRegData._
+import mips.util.pipeline._
 import mips.util.Control._
 import mips.util._
 
-class PipelineExecutionResult extends Bundle {
-  val pc = SInt(32.W)
-  val pcChanged = Bool()
-  val inst = new Instruction
-  val controlSignal = new ControlSignal
-  val regReadId = GPR.registerReadId
-  val regReadData = GPR.registerReadData
-  val wRegId = UInt(5.W)
-  val aluResult = UInt(32.W)
-  val dmAddr = UInt(32.W)
-  val wRegDataReady = Bool()
-  val wRegData = UInt(32.W)
-  val bubbled = Bool()
-}
-
 class cExecution extends Module {
   val io = IO(new Bundle{
-    val pipelineDecodeResult = Input(new PipelineDecodeResult)
+    val pipelineDecodeResult = Input(new DecodeBundle)
 
-    val pipelineExecutionResult = Output(new PipelineExecutionResult)
-    val stallOnExecution = Output(new Bool())
-    val stallFromExecution = Output(new Bool())
+    val pipelineExecutionResult = Output(new ExecutionBundle)
+    val suspendOnExecution = Output(new Bool())
+    val suspendFromExecution = Output(new Bool())
     val dataFromExec = Output(new BypassRegData)
 
     // Bypass Query
     val bypass = new Bundle {
-      val pcChanged = Output(Bool())
+      val pcMagic = Output(Bool())
       val regReadId = Output(GPR.registerReadId)
       val origRegData = Output(GPR.registerReadData)
       val bypassData = Input(Vec(2, new Bundle {
         val data = UInt(32.W)
-        val stall = Bool()
+        val suspend = Bool()
       }))
     }
   })
   val dataFromExec = Wire(new BypassRegData)
   io.dataFromExec := dataFromExec
 
-  val pipelineExecutionResult = RegInit(0.U.asTypeOf(new PipelineExecutionResult))
+  val pipelineExecutionResult = RegInit(0.U.asTypeOf(new ExecutionBundle))
   io.pipelineExecutionResult := pipelineExecutionResult
 
-  val hazardStall = Wire(Vec(2, Bool()))
+  val regDataNotReady = Wire(Vec(2, Bool()))
 
-  io.bypass.pcChanged := io.pipelineDecodeResult.pcChanged
+  io.bypass.pcMagic := io.pipelineDecodeResult.pcMagic
   io.bypass.regReadId := io.pipelineDecodeResult.regReadId
   io.bypass.origRegData := io.pipelineDecodeResult.regReadData
 
   val regReadData1 = io.bypass.bypassData(0).data
   val regReadData2 = io.bypass.bypassData(1).data
 
-  hazardStall(1) := io.bypass.bypassData(0).stall
-  hazardStall(0) := io.bypass.bypassData(1).stall
+  regDataNotReady(1) := io.bypass.bypassData(0).suspend
+  regDataNotReady(0) := io.bypass.bypassData(1).suspend
 
   val regData = Wire(GPR.registerReadData)
   regData(0) := regReadData1
   regData(1) := regReadData2
 
   val mduBusy = Wire(Bool())
-  val stallFromExecution = (hazardStall(0) && io.pipelineDecodeResult.controlSignal.regData1Stage <= reg_stage_exec) ||
-    (hazardStall(1) && io.pipelineDecodeResult.controlSignal.regData1Stage <= reg_stage_exec) ||
+  val suspendFromExecution = (regDataNotReady(0) && io.pipelineDecodeResult.controlSignal.regData1Stage <= reg_stage_exec) ||
+    (regDataNotReady(1) && io.pipelineDecodeResult.controlSignal.regData1Stage <= reg_stage_exec) ||
     mduBusy
-  io.stallFromExecution := stallFromExecution
+  io.suspendFromExecution := suspendFromExecution
 
-  val stallOnExecution = stallFromExecution
-  io.stallOnExecution := stallOnExecution
+  val suspendOnExecution = suspendFromExecution
+  io.suspendOnExecution := suspendOnExecution
 
-  val stall = stallOnExecution || io.pipelineDecodeResult.bubbled
+  val suspend = suspendOnExecution || io.pipelineDecodeResult.bubbled
 
   val op1 = getOperand(io.pipelineDecodeResult.controlSignal.aluOpFrom1, regData, io.pipelineDecodeResult.inst)
   val op2 = getOperand(io.pipelineDecodeResult.controlSignal.aluOpFrom2, regData, io.pipelineDecodeResult.inst)
@@ -87,14 +73,14 @@ class cExecution extends Module {
   mdu.io.op1 := op1
   mdu.io.op2 := op2
   mdu.io.op := io.pipelineDecodeResult.controlSignal.mduOp
-  mdu.io.start := io.pipelineDecodeResult.controlSignal.startMdu && !stall
+  mdu.io.start := io.pipelineDecodeResult.controlSignal.startMdu && !suspend
   mduBusy := mdu.io.busy
 
-  val passBubble = stallFromExecution || io.pipelineDecodeResult.bubbled
+  val passBubble = suspendFromExecution || io.pipelineDecodeResult.bubbled
 
-  when (!stall) {
+  when (!suspend) {
     pipelineExecutionResult.pc := io.pipelineDecodeResult.pc
-    pipelineExecutionResult.pcChanged := io.pipelineDecodeResult.pcChanged
+    pipelineExecutionResult.pcMagic := io.pipelineDecodeResult.pcMagic
     pipelineExecutionResult.inst := io.pipelineDecodeResult.inst
     pipelineExecutionResult.controlSignal := io.pipelineDecodeResult.controlSignal
     pipelineExecutionResult.regReadId := io.pipelineDecodeResult.regReadId

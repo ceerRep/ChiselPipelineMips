@@ -3,20 +3,14 @@
 package mips
 
 import chisel3._
-import mips.modules.{BypassModule, GeneralPurposeRegisters, Memory}
+import mips.modules.{BypassModule, RegisterSet, Memory}
 import mips.modules.stages._
-import mips.util.{BypassRegData, GPR}
 
-/**
-  * Compute GCD using subtraction method.
-  * Subtracts the smaller from the larger until register y is zero.
-  * value in register x is then the GCD
-  */
 class MIPS extends Module {
   val io = IO(new Bundle {
   })
 
-  val gpr = Module(new GeneralPurposeRegisters)
+  val gpr = Module(new RegisterSet)
 
   val bypassModule = Module(new BypassModule)
 
@@ -42,14 +36,14 @@ class MIPS extends Module {
   gpr.io.din := eWriteBackStage.io.wRegData
   gpr.io.pcWrite := dMemoryStage.io.pipelineMemoryResult.pc
 
-  aFetchStage.io.decodeStall := bDecodeStage.io.decodeStall
+  aFetchStage.io.decodeSuspend := bDecodeStage.io.decodeSuspend
   aFetchStage.io.jump := bDecodeStage.io.jump
   aFetchStage.io.jumpValue := bDecodeStage.io.jumpValue
   aFetchStage.io.mem <> memory.io.readonly
 
   bDecodeStage.io.pipelineFetchResult := aFetchStage.io.pipelineFetchResult
-  bDecodeStage.io.stallOnExecuation := cExecutionStage.io.stallOnExecution
-  bDecodeStage.io.stallFromExecuation := cExecutionStage.io.stallFromExecution
+  bDecodeStage.io.suspendOnExecuation := cExecutionStage.io.suspendOnExecution
+  bDecodeStage.io.suspendFromExecuation := cExecutionStage.io.suspendFromExecution
   bDecodeStage.io.regReadData := gpr.io.readData
 
   cExecutionStage.io.pipelineDecodeResult := bDecodeStage.io.pipelineDecodeResult

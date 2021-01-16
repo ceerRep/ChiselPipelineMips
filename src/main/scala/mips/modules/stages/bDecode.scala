@@ -2,53 +2,40 @@ package mips.modules.stages
 
 import chisel3._
 import chisel3.util._
-import mips.modules.PC.JumpType
+import mips.modules.PCControl.JumpType
 import mips.modules.ControlUnit
-import mips.util.BypassRegData.bypassRegDatas
 import mips.util.Control._
+import mips.util.pipeline._
 import mips.util.{BypassRegData, Control, ControlSignal, GPR, Instruction}
-
-class PipelineDecodeResult extends Bundle {
-  val pc = SInt(32.W)
-  val pcChanged = Bool()
-  val inst = new Instruction
-  val controlSignal = new ControlSignal
-  val regReadId = GPR.registerReadId
-  val regReadData = GPR.registerReadData
-  val wRegId = UInt(5.W)
-  val wRegDataReady = Bool()
-  val wRegData = UInt(32.W)
-  val bubbled = Bool()
-}
 
 class bDecode extends Module {
   val io = IO(new Bundle {
-    val pipelineFetchResult = Input(new PipelineFetchResult)
-    val stallOnExecuation = Input(Bool())
-    val stallFromExecuation = Input(Bool())
+    val pipelineFetchResult = Input(new FetchBundle)
+    val suspendOnExecuation = Input(Bool())
+    val suspendFromExecuation = Input(Bool())
     val regReadData = Input(GPR.registerReadData)
 
     val regReadId = Output(GPR.registerReadId)
-    val pipelineDecodeResult = Output(new PipelineDecodeResult)
-    val decodeStall = Output(Bool())
+    val pipelineDecodeResult = Output(new DecodeBundle)
+    val decodeSuspend = Output(Bool())
     val dataFromDecode = Output(new BypassRegData)
     val jump = Output(Bool())
     val jumpValue = Output(SInt(32.W))
 
     // Bypass Query
     val bypass = new Bundle {
-      val pcChanged = Output(Bool())
+      val pcMagic = Output(Bool())
       val regReadId = Output(GPR.registerReadId)
       val origRegData = Output(GPR.registerReadData)
       val bypassData = Input(Vec(2, new Bundle {
         val data = UInt(32.W)
-        val stall = Bool()
+        val suspend = Bool()
       }))
     }
   })
   val dataFromDecode = Wire(new BypassRegData)
   io.dataFromDecode := dataFromDecode
-  val pipelineDecodeResult = RegInit(0.U.asTypeOf(new PipelineDecodeResult))
+  val pipelineDecodeResult = RegInit(0.U.asTypeOf(new DecodeBundle))
   io.pipelineDecodeResult := pipelineDecodeResult
 
   val cu = Module(new ControlUnit)
@@ -64,27 +51,26 @@ class bDecode extends Module {
 
   val wRegId = Control.getRegisterId(signal.wRegIDFrom, inst)
 
-  val hazardStall = Wire(Vec(2, Bool()))
+  val regDataNotReady = Wire(Vec(2, Bool()))
+  regDataNotReady(0) := io.bypass.bypassData(0).suspend
+  regDataNotReady(1) := io.bypass.bypassData(1).suspend
 
-  io.bypass.pcChanged := io.pipelineFetchResult.pcChanged
+  io.bypass.pcMagic := io.pipelineFetchResult.pcMagic
   io.bypass.regReadId(0) := regReadId1
   io.bypass.regReadId(1) := regReadId2
   io.bypass.origRegData := io.regReadData
 
-  hazardStall(0) := io.bypass.bypassData(0).stall
-  hazardStall(1) := io.bypass.bypassData(1).stall
-
   val regReadData1 = io.bypass.bypassData(0).data
   val regReadData2 = io.bypass.bypassData(1).data
 
-  val stallFromDecode = (hazardStall(0) && signal.regData1Stage <= reg_stage_decode) ||
-    (hazardStall(1) && signal.regData2Stage <= reg_stage_decode)
+  val suspendFromDecode = (regDataNotReady(0) && signal.regData1Stage <= reg_stage_decode) ||
+    (regDataNotReady(1) && signal.regData2Stage <= reg_stage_decode)
 
-  val stallOnDecode = stallFromDecode || io.stallOnExecuation
-  io.decodeStall := stallOnDecode
+  val suspendOnDecode = suspendFromDecode || io.suspendOnExecuation
+  io.decodeSuspend := suspendOnDecode
 
   io.jump := 0.B
-  when(!stallOnDecode) {
+  when(!suspendOnDecode) {
     switch(signal.jumpCond) {
       is(jump_always) {
         io.jump := 1.B
@@ -129,9 +115,9 @@ class bDecode extends Module {
     }
   }
 
-  when(!stallOnDecode) {
+  when(!suspendOnDecode) {
     pipelineDecodeResult.pc := io.pipelineFetchResult.pc
-    pipelineDecodeResult.pcChanged := io.pipelineFetchResult.pcChanged
+    pipelineDecodeResult.pcMagic := io.pipelineFetchResult.pcMagic
     pipelineDecodeResult.inst := io.pipelineFetchResult.inst
     pipelineDecodeResult.controlSignal := signal
     pipelineDecodeResult.regReadId(0) := regReadId1
@@ -159,8 +145,8 @@ class bDecode extends Module {
 
   }
 
-  when (!io.stallFromExecuation) {
-    pipelineDecodeResult.bubbled := stallOnDecode
+  when (!io.suspendFromExecuation) {
+    pipelineDecodeResult.bubbled := suspendOnDecode
   }
 
   when (pipelineDecodeResult.bubbled) {
@@ -176,7 +162,6 @@ class bDecode extends Module {
 }
 
 object bDecode extends App {
-
   //  (new chisel3.stage.ChiselStage).emitVerilog(new GCD,args.union(Array("-td","v")).distinct)
   (new chisel3.stage.ChiselStage).emitVerilog(new bDecode, Array("-td", "v"))
 }

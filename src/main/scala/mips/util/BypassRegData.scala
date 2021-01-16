@@ -9,7 +9,7 @@ class BypassRegData extends Bundle {
 }
 
 object BypassRegData {
-  val stallStageCount = 3
+  val bypassStageCount = 3
   def bypassNull: BypassRegData = {
     val data = Wire(new BypassRegData)
     data.regId := GPR.ZERO
@@ -17,5 +17,5 @@ object BypassRegData {
     data.data := 0.U(32.W)
     data
   }
-  def bypassRegDatas: Vec[BypassRegData] = Vec(stallStageCount, new BypassRegData)
+  def bypassRegDatas: Vec[BypassRegData] = Vec(bypassStageCount, new BypassRegData)
 }

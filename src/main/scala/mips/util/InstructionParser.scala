@@ -3,7 +3,7 @@ package mips.util
 import chisel3._
 import InstructionConstants._
 
-object InstParse {
+object InstructionParser {
   def parseInstruction(inst32: UInt) : Instruction = {
     val inst = Wire(new Instruction)
     inst.inst := inst32

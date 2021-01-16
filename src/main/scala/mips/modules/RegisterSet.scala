@@ -5,7 +5,7 @@ import chisel3.util._
 
 import mips.util.GPR._
 
-class GeneralPurposeRegisters extends Module {
+class RegisterSet extends Module {
   val io = IO(new Bundle {
     val readId = Input(registerReadId)
     val writeId = Input(UInt(5.W))
@@ -32,7 +32,7 @@ class GeneralPurposeRegisters extends Module {
   }
 }
 
-object GeneralPurposeRegisters extends App {
+object RegisterSet extends App {
   //  (new chisel3.stage.ChiselStage).emitVerilog(new GCD,args.union(Array("-td","v")).distinct)
-  (new chisel3.stage.ChiselStage).emitVerilog(new GeneralPurposeRegisters, Array("-td", "v"))
+  (new chisel3.stage.ChiselStage).emitVerilog(new RegisterSet, Array("-td", "v"))
 }

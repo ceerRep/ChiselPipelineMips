@@ -1,7 +1,7 @@
 package mips.modules
 
 import chisel3._
-import PC.JumpType
+import PCControl.JumpType
 import mips.util.Control._
 import mips.util.Ops._
 import mips.util.InstructionByteCode._
