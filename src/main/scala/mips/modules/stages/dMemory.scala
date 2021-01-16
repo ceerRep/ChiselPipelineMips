@@ -28,6 +28,17 @@ class dMemory extends Module {
 
     val pipelineMemoryResult = Output(new PipelineMemoryResult)
     val dataFromMem = Output(new BypassRegData)
+
+    // Bypass Query
+    val bypass = new Bundle {
+      val pcChanged = Output(Bool())
+      val regReadId = Output(new GPR.RegisterReadId)
+      val origRegData = Output(new GPR.RegisterReadData)
+      val bypassData = Input(Vec(2, new Bundle {
+        val data = UInt(32.W)
+        val stall = Bool()
+      }))
+    }
   })
   val dataFromMem = Wire(new BypassRegData)
   io.dataFromMem := dataFromMem
@@ -36,26 +47,16 @@ class dMemory extends Module {
   io.pipelineMemoryResult := pipelineMemoryResult
 
   val hazardStall = Wire(Vec(2, Bool()))
-  val stageDatas = Wire(bypassRegDatas)
-  stageDatas(0) := dataFromMem
-  stageDatas(1) := bypassNull
-  stageDatas(2) := bypassNull
 
-  val bu0 = Module(new BypassUnit)
-  bu0.io.pcChanged := io.pipelineExecutionResult.pcChanged
-  bu0.io.regId := io.pipelineExecutionResult.regReadId.id1
-  bu0.io.origData := io.pipelineExecutionResult.regReadData.data1
-  bu0.io.datas := stageDatas
-  val regReadData1 = bu0.io.bypassData
-  hazardStall(0) := bu0.io.stall
+  io.bypass.pcChanged := io.pipelineExecutionResult.pcChanged
+  io.bypass.regReadId := io.pipelineExecutionResult.regReadId
+  io.bypass.origRegData := io.pipelineExecutionResult.regReadData
 
-  val bu1 = Module(new BypassUnit)
-  bu1.io.pcChanged := io.pipelineExecutionResult.pcChanged
-  bu1.io.regId := io.pipelineExecutionResult.regReadId.id2
-  bu1.io.origData := io.pipelineExecutionResult.regReadData.data2
-  bu1.io.datas := stageDatas
-  val regReadData2 = bu1.io.bypassData
-  hazardStall(1) := bu1.io.stall
+  val regReadData1 = io.bypass.bypassData(0).data
+  val regReadData2 = io.bypass.bypassData(1).data
+
+  hazardStall(1) := io.bypass.bypassData(0).stall
+  hazardStall(0) := io.bypass.bypassData(1).stall
 
   val regData = Wire(new GPR.RegisterReadData)
   regData.data1 := regReadData1

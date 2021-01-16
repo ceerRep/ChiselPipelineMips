@@ -25,12 +25,22 @@ class PipelineExecutionResult extends Bundle {
 class cExecution extends Module {
   val io = IO(new Bundle{
     val pipelineDecodeResult = Input(new PipelineDecodeResult)
-    val dataFromMem = Input(new BypassRegData)
 
     val pipelineExecutionResult = Output(new PipelineExecutionResult)
     val stallOnExecution = Output(new Bool())
     val stallFromExecution = Output(new Bool())
     val dataFromExec = Output(new BypassRegData)
+
+    // Bypass Query
+    val bypass = new Bundle {
+      val pcChanged = Output(Bool())
+      val regReadId = Output(new GPR.RegisterReadId)
+      val origRegData = Output(new GPR.RegisterReadData)
+      val bypassData = Input(Vec(2, new Bundle {
+        val data = UInt(32.W)
+        val stall = Bool()
+      }))
+    }
   })
   val dataFromExec = Wire(new BypassRegData)
   io.dataFromExec := dataFromExec
@@ -39,26 +49,16 @@ class cExecution extends Module {
   io.pipelineExecutionResult := pipelineExecutionResult
 
   val hazardStall = Wire(Vec(2, Bool()))
-  val stageDatas = Wire(bypassRegDatas)
-  stageDatas(0) := dataFromExec
-  stageDatas(1) := io.dataFromMem
-  stageDatas(2) := bypassNull
 
-  val bu0 = Module(new BypassUnit)
-  bu0.io.pcChanged := io.pipelineDecodeResult.pcChanged
-  bu0.io.regId := io.pipelineDecodeResult.regReadId.id1
-  bu0.io.origData := io.pipelineDecodeResult.regReadData.data1
-  bu0.io.datas := stageDatas
-  val regReadData1 = bu0.io.bypassData
-  hazardStall(0) := bu0.io.stall
+  io.bypass.pcChanged := io.pipelineDecodeResult.pcChanged
+  io.bypass.regReadId := io.pipelineDecodeResult.regReadId
+  io.bypass.origRegData := io.pipelineDecodeResult.regReadData
 
-  val bu1 = Module(new BypassUnit)
-  bu1.io.pcChanged := io.pipelineDecodeResult.pcChanged
-  bu1.io.regId := io.pipelineDecodeResult.regReadId.id2
-  bu1.io.origData := io.pipelineDecodeResult.regReadData.data2
-  bu1.io.datas := stageDatas
-  val regReadData2 = bu1.io.bypassData
-  hazardStall(1) := bu1.io.stall
+  val regReadData1 = io.bypass.bypassData(0).data
+  val regReadData2 = io.bypass.bypassData(1).data
+
+  hazardStall(1) := io.bypass.bypassData(0).stall
+  hazardStall(0) := io.bypass.bypassData(1).stall
 
   val regData = Wire(new GPR.RegisterReadData)
   regData.data1 := regReadData1

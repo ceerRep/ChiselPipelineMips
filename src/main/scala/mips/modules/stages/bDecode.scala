@@ -26,8 +26,6 @@ class bDecode extends Module {
     val pipelineFetchResult = Input(new PipelineFetchResult)
     val stallOnExecuation = Input(Bool())
     val stallFromExecuation = Input(Bool())
-    val dataFromExec = Input(new BypassRegData)
-    val dataFromMem = Input(new BypassRegData)
     val regReadData = Input(new GPR.RegisterReadData)
 
     val regReadId = Output(new GPR.RegisterReadId)
@@ -36,6 +34,17 @@ class bDecode extends Module {
     val dataFromDecode = Output(new BypassRegData)
     val jump = Output(Bool())
     val jumpValue = Output(SInt(32.W))
+
+    // Bypass Query
+    val bypass = new Bundle {
+      val pcChanged = Output(Bool())
+      val regReadId = Output(new GPR.RegisterReadId)
+      val origRegData = Output(new GPR.RegisterReadData)
+      val bypassData = Input(Vec(2, new Bundle {
+        val data = UInt(32.W)
+        val stall = Bool()
+      }))
+    }
   })
   val dataFromDecode = Wire(new BypassRegData)
   io.dataFromDecode := dataFromDecode
@@ -57,26 +66,16 @@ class bDecode extends Module {
 
   val hazardStall = Wire(Vec(2, Bool()))
 
-  val stageDatas = Wire(bypassRegDatas)
-  stageDatas(0) := dataFromDecode
-  stageDatas(1) := io.dataFromExec
-  stageDatas(2) := io.dataFromMem
+  io.bypass.pcChanged := io.pipelineFetchResult.pcChanged
+  io.bypass.regReadId.id1 := regReadId1
+  io.bypass.regReadId.id2 := regReadId2
+  io.bypass.origRegData := io.regReadData
 
-  val bu0 = Module(new BypassUnit)
-  bu0.io.pcChanged := io.pipelineFetchResult.pcChanged
-  bu0.io.regId := regReadId1
-  bu0.io.origData := io.regReadData.data1
-  bu0.io.datas := stageDatas
-  val regReadData1 = bu0.io.bypassData
-  hazardStall(0) := bu0.io.stall
+  hazardStall(0) := io.bypass.bypassData(0).stall
+  hazardStall(1) := io.bypass.bypassData(1).stall
 
-  val bu1 = Module(new BypassUnit)
-  bu1.io.pcChanged := io.pipelineFetchResult.pcChanged
-  bu1.io.regId := regReadId2
-  bu1.io.origData := io.regReadData.data2
-  bu1.io.datas := stageDatas
-  val regReadData2 = bu1.io.bypassData
-  hazardStall(1) := bu1.io.stall
+  val regReadData1 = io.bypass.bypassData(0).data
+  val regReadData2 = io.bypass.bypassData(1).data
 
   val stallFromDecode = (hazardStall(0) && signal.regData1Stage <= reg_stage_decode) ||
     (hazardStall(1) && signal.regData2Stage <= reg_stage_decode)

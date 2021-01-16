@@ -3,7 +3,7 @@
 package mips
 
 import chisel3._
-import mips.modules.GeneralPurposeRegisters
+import mips.modules.{BypassModule, GeneralPurposeRegisters}
 import mips.modules.stages._
 import mips.util.{BypassRegData, GPR}
 
@@ -22,6 +22,15 @@ class MIPS extends Module {
   val execution = Module(new cExecution)
   val memory = Module(new dMemory)
   val writeBack = Module(new eWriteBack)
+  val bypassModule = Module(new BypassModule)
+
+  bypassModule.io.stageDatas(0) := decode.io.dataFromDecode
+  bypassModule.io.stageDatas(1) := execution.io.dataFromExec
+  bypassModule.io.stageDatas(2) := memory.io.dataFromMem
+
+  bypassModule.io.bypassQueries(0) <> decode.io.bypass
+  bypassModule.io.bypassQueries(1) <> execution.io.bypass
+  bypassModule.io.bypassQueries(2) <> memory.io.bypass
 
   gpr.io.readId := decode.io.regReadId
   gpr.io.writeId := writeBack.io.wRegId
@@ -36,12 +45,9 @@ class MIPS extends Module {
   decode.io.pipelineFetchResult := fetch.io.pipelineFetchResult
   decode.io.stallOnExecuation := execution.io.stallOnExecution
   decode.io.stallFromExecuation := execution.io.stallFromExecution
-  decode.io.dataFromExec := execution.io.dataFromExec
-  decode.io.dataFromMem := memory.io.dataFromMem
   decode.io.regReadData := gpr.io.readData
 
   execution.io.pipelineDecodeResult := decode.io.pipelineDecodeResult
-  execution.io.dataFromMem := memory.io.dataFromMem
 
   memory.io.pipelineExecutionResult := execution.io.pipelineExecutionResult
 
