@@ -2,7 +2,7 @@ package mips.modules.stages
 
 import chisel3._
 import chisel3.util._
-import mips.modules.{ALU, BypassUnit, MDU}
+import mips.modules.{ALU, MDU}
 import mips.util.BypassRegData._
 import mips.util.Control._
 import mips.util._
@@ -12,8 +12,8 @@ class PipelineExecutionResult extends Bundle {
   val pcChanged = Bool()
   val inst = new Instruction
   val controlSignal = new ControlSignal
-  val regReadId = new GPR.RegisterReadId
-  val regReadData = new GPR.RegisterReadData
+  val regReadId = GPR.registerReadId
+  val regReadData = GPR.registerReadData
   val wRegId = UInt(5.W)
   val aluResult = UInt(32.W)
   val dmAddr = UInt(32.W)
@@ -34,8 +34,8 @@ class cExecution extends Module {
     // Bypass Query
     val bypass = new Bundle {
       val pcChanged = Output(Bool())
-      val regReadId = Output(new GPR.RegisterReadId)
-      val origRegData = Output(new GPR.RegisterReadData)
+      val regReadId = Output(GPR.registerReadId)
+      val origRegData = Output(GPR.registerReadData)
       val bypassData = Input(Vec(2, new Bundle {
         val data = UInt(32.W)
         val stall = Bool()
@@ -60,9 +60,9 @@ class cExecution extends Module {
   hazardStall(1) := io.bypass.bypassData(0).stall
   hazardStall(0) := io.bypass.bypassData(1).stall
 
-  val regData = Wire(new GPR.RegisterReadData)
-  regData.data1 := regReadData1
-  regData.data2 := regReadData2
+  val regData = Wire(GPR.registerReadData)
+  regData(0) := regReadData1
+  regData(1) := regReadData2
 
   val mduBusy = Wire(Bool())
   val stallFromExecution = (hazardStall(0) && io.pipelineDecodeResult.controlSignal.regData1Stage <= reg_stage_exec) ||

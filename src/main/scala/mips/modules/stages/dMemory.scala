@@ -3,7 +3,6 @@ package mips.modules.stages
 import chisel3._
 import chisel3.util._
 import mips.DataMemoryBlackBox
-import mips.modules.BypassUnit
 import mips.util.BypassRegData._
 import mips.util.Control.{dm_write_from_reg2, reg_write_from_dm}
 import mips.util._
@@ -13,8 +12,8 @@ class PipelineMemoryResult extends Bundle {
   val pcChanged = Bool()
   val inst = new Instruction
   val controlSignal = new ControlSignal
-  val regReadId = new GPR.RegisterReadId
-  val regReadData = new GPR.RegisterReadData
+  val regReadId = GPR.registerReadId
+  val regReadData = GPR.registerReadData
   val dmAddr = UInt(32.W)
   val wRegId = UInt(5.W)
   val wRegDataReady = Bool()
@@ -32,8 +31,8 @@ class dMemory extends Module {
     // Bypass Query
     val bypass = new Bundle {
       val pcChanged = Output(Bool())
-      val regReadId = Output(new GPR.RegisterReadId)
-      val origRegData = Output(new GPR.RegisterReadData)
+      val regReadId = Output(GPR.registerReadId)
+      val origRegData = Output(GPR.registerReadData)
       val bypassData = Input(Vec(2, new Bundle {
         val data = UInt(32.W)
         val stall = Bool()
@@ -58,9 +57,9 @@ class dMemory extends Module {
   hazardStall(1) := io.bypass.bypassData(0).stall
   hazardStall(0) := io.bypass.bypassData(1).stall
 
-  val regData = Wire(new GPR.RegisterReadData)
-  regData.data1 := regReadData1
-  regData.data2 := regReadData2
+  val regData = Wire(GPR.registerReadData)
+  regData(0) := regReadData1
+  regData(1) := regReadData2
 
   assert((hazardStall(0) || hazardStall(1)) === 0.B)
 
@@ -73,7 +72,7 @@ class dMemory extends Module {
   dm.io.read_sign_extend := io.pipelineExecutionResult.controlSignal.dmReadSigned
   dm.io.write_size := Mux(stall, 0.U, io.pipelineExecutionResult.controlSignal.dmWriteSize)
   dm.io.din := Mux(io.pipelineExecutionResult.controlSignal.dmWriteDataFrom === dm_write_from_reg2,
-    regData.data2,
+    regData(1),
     0.U
   )
   dm.io.pc := io.pipelineExecutionResult.pc

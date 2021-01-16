@@ -36,13 +36,7 @@ object GPR {
   val FP   = 30.U(5.W)
   val RA   = 31.U(5.W)
 
-  class RegisterReadId extends Bundle {
-    val id1 = UInt(5.W)
-    val id2 = UInt(5.W)
-  }
+  def registerReadId: Vec[UInt] = Vec(2, UInt(5.W))
 
-  class RegisterReadData extends Bundle {
-    val data1 = UInt(32.W)
-    val data2 = UInt(32.W)
-  }
+  def registerReadData: Vec[UInt] = Vec(2, UInt(32.W))
 }

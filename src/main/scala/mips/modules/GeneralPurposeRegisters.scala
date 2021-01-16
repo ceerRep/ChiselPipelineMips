@@ -7,20 +7,20 @@ import mips.util.GPR._
 
 class GeneralPurposeRegisters extends Module {
   val io = IO(new Bundle {
-    val readId = Input(new RegisterReadId)
+    val readId = Input(registerReadId)
     val writeId = Input(UInt(5.W))
     val we = Input(Bool())
     val din = Input(UInt(32.W))
     val pcWrite = Input(SInt(32.W))
 
-    val readData = Output(new RegisterReadData)
+    val readData = Output(registerReadData)
   })
 
   withClock((!clock.asBool).asClock) {
     val regs = RegInit(VecInit(Seq.fill(32)(0.U(32.W))))
 
-    io.readData.data1 := regs(io.readId.id1)
-    io.readData.data2 := regs(io.readId.id2)
+    io.readData(0) := regs(io.readId(0))
+    io.readData(1) := regs(io.readId(1))
 
     when (io.we && io.writeId =/= ZERO) {
       regs(io.writeId) := io.din

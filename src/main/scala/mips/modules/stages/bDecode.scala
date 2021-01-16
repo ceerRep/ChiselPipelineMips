@@ -3,7 +3,7 @@ package mips.modules.stages
 import chisel3._
 import chisel3.util._
 import mips.modules.PC.JumpType
-import mips.modules.{BypassUnit, ControlUnit}
+import mips.modules.ControlUnit
 import mips.util.BypassRegData.bypassRegDatas
 import mips.util.Control._
 import mips.util.{BypassRegData, Control, ControlSignal, GPR, Instruction}
@@ -13,8 +13,8 @@ class PipelineDecodeResult extends Bundle {
   val pcChanged = Bool()
   val inst = new Instruction
   val controlSignal = new ControlSignal
-  val regReadId = new GPR.RegisterReadId
-  val regReadData = new GPR.RegisterReadData
+  val regReadId = GPR.registerReadId
+  val regReadData = GPR.registerReadData
   val wRegId = UInt(5.W)
   val wRegDataReady = Bool()
   val wRegData = UInt(32.W)
@@ -26,9 +26,9 @@ class bDecode extends Module {
     val pipelineFetchResult = Input(new PipelineFetchResult)
     val stallOnExecuation = Input(Bool())
     val stallFromExecuation = Input(Bool())
-    val regReadData = Input(new GPR.RegisterReadData)
+    val regReadData = Input(GPR.registerReadData)
 
-    val regReadId = Output(new GPR.RegisterReadId)
+    val regReadId = Output(GPR.registerReadId)
     val pipelineDecodeResult = Output(new PipelineDecodeResult)
     val decodeStall = Output(Bool())
     val dataFromDecode = Output(new BypassRegData)
@@ -38,8 +38,8 @@ class bDecode extends Module {
     // Bypass Query
     val bypass = new Bundle {
       val pcChanged = Output(Bool())
-      val regReadId = Output(new GPR.RegisterReadId)
-      val origRegData = Output(new GPR.RegisterReadData)
+      val regReadId = Output(GPR.registerReadId)
+      val origRegData = Output(GPR.registerReadData)
       val bypassData = Input(Vec(2, new Bundle {
         val data = UInt(32.W)
         val stall = Bool()
@@ -59,16 +59,16 @@ class bDecode extends Module {
   val regReadId1 = Control.getRegisterId(signal.reg1IDFrom, inst)
   val regReadId2 = Control.getRegisterId(signal.reg2IDFrom, inst)
 
-  io.regReadId.id1 := regReadId1
-  io.regReadId.id2 := regReadId2
+  io.regReadId(0) := regReadId1
+  io.regReadId(1) := regReadId2
 
   val wRegId = Control.getRegisterId(signal.wRegIDFrom, inst)
 
   val hazardStall = Wire(Vec(2, Bool()))
 
   io.bypass.pcChanged := io.pipelineFetchResult.pcChanged
-  io.bypass.regReadId.id1 := regReadId1
-  io.bypass.regReadId.id2 := regReadId2
+  io.bypass.regReadId(0) := regReadId1
+  io.bypass.regReadId(1) := regReadId2
   io.bypass.origRegData := io.regReadData
 
   hazardStall(0) := io.bypass.bypassData(0).stall
@@ -134,10 +134,10 @@ class bDecode extends Module {
     pipelineDecodeResult.pcChanged := io.pipelineFetchResult.pcChanged
     pipelineDecodeResult.inst := io.pipelineFetchResult.inst
     pipelineDecodeResult.controlSignal := signal
-    pipelineDecodeResult.regReadId.id1 := regReadId1
-    pipelineDecodeResult.regReadId.id2 := regReadId2
-    pipelineDecodeResult.regReadData.data1 := regReadData1
-    pipelineDecodeResult.regReadData.data2 := regReadData2
+    pipelineDecodeResult.regReadId(0) := regReadId1
+    pipelineDecodeResult.regReadId(1) := regReadId2
+    pipelineDecodeResult.regReadData(0) := regReadData1
+    pipelineDecodeResult.regReadData(1) := regReadData2
     pipelineDecodeResult.wRegId := wRegId
 
     when(signal.wRegEnabled) {

@@ -35,11 +35,11 @@ object Control {
     a
   }
 
-  def getOperand(from: UInt, regs: GPR.RegisterReadData, inst: Instruction) : UInt = {
+  def getOperand(from: UInt, regs: Vec[UInt], inst: Instruction) : UInt = {
     val a = Wire(UInt(32.W))
     a := MuxCase(0x00CC00CC.U(32.W), Array(
-      (from === alu_op_from_reg1) -> regs.data1,
-      (from === alu_op_from_reg2) -> regs.data2,
+      (from === alu_op_from_reg1) -> regs(0),
+      (from === alu_op_from_reg2) -> regs(1),
       (from === alu_op_from_simme) -> inst.imm16.asTypeOf(SInt(32.W)).asUInt(),
       (from === alu_op_from_uimme) -> inst.imm16.asTypeOf(UInt(32.W)),
       (from === alu_op_from_sha) -> inst.shiftAmount.asTypeOf(UInt(32.W))
