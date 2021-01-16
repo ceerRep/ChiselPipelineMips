@@ -3,7 +3,7 @@
 package mips
 
 import chisel3._
-import mips.modules.{BypassModule, GeneralPurposeRegisters}
+import mips.modules.{BypassModule, GeneralPurposeRegisters, Memory}
 import mips.modules.stages._
 import mips.util.{BypassRegData, GPR}
 
@@ -17,44 +17,50 @@ class MIPS extends Module {
   })
 
   val gpr = Module(new GeneralPurposeRegisters)
-  val fetch = Module(new aFetch)
-  val decode = Module(new bDecode)
-  val execution = Module(new cExecution)
-  val memory = Module(new dMemory)
-  val writeBack = Module(new eWriteBack)
+
   val bypassModule = Module(new BypassModule)
 
-  bypassModule.io.stageDatas(0) := decode.io.dataFromDecode
-  bypassModule.io.stageDatas(1) := execution.io.dataFromExec
-  bypassModule.io.stageDatas(2) := memory.io.dataFromMem
+  val memory = Module(new Memory)
 
-  bypassModule.io.bypassQueries(0) <> decode.io.bypass
-  bypassModule.io.bypassQueries(1) <> execution.io.bypass
-  bypassModule.io.bypassQueries(2) <> memory.io.bypass
+  val aFetchStage = Module(new aFetch)
+  val bDecodeStage = Module(new bDecode)
+  val cExecutionStage = Module(new cExecution)
+  val dMemoryStage = Module(new dMemory)
+  val eWriteBackStage = Module(new eWriteBack)
 
-  gpr.io.readId := decode.io.regReadId
-  gpr.io.writeId := writeBack.io.wRegId
-  gpr.io.we := writeBack.io.wRegEnabled
-  gpr.io.din := writeBack.io.wRegData
-  gpr.io.pcWrite := memory.io.pipelineMemoryResult.pc
+  bypassModule.io.stageDatas(0) := bDecodeStage.io.dataFromDecode
+  bypassModule.io.stageDatas(1) := cExecutionStage.io.dataFromExec
+  bypassModule.io.stageDatas(2) := dMemoryStage.io.dataFromMem
 
-  fetch.io.decodeStall := decode.io.decodeStall
-  fetch.io.jump := decode.io.jump
-  fetch.io.jumpValue := decode.io.jumpValue
+  bypassModule.io.bypassQueries(0) <> bDecodeStage.io.bypass
+  bypassModule.io.bypassQueries(1) <> cExecutionStage.io.bypass
+  bypassModule.io.bypassQueries(2) <> dMemoryStage.io.bypass
 
-  decode.io.pipelineFetchResult := fetch.io.pipelineFetchResult
-  decode.io.stallOnExecuation := execution.io.stallOnExecution
-  decode.io.stallFromExecuation := execution.io.stallFromExecution
-  decode.io.regReadData := gpr.io.readData
+  gpr.io.readId := bDecodeStage.io.regReadId
+  gpr.io.writeId := eWriteBackStage.io.wRegId
+  gpr.io.we := eWriteBackStage.io.wRegEnabled
+  gpr.io.din := eWriteBackStage.io.wRegData
+  gpr.io.pcWrite := dMemoryStage.io.pipelineMemoryResult.pc
 
-  execution.io.pipelineDecodeResult := decode.io.pipelineDecodeResult
+  aFetchStage.io.decodeStall := bDecodeStage.io.decodeStall
+  aFetchStage.io.jump := bDecodeStage.io.jump
+  aFetchStage.io.jumpValue := bDecodeStage.io.jumpValue
+  aFetchStage.io.mem <> memory.io.readonly
 
-  memory.io.pipelineExecutionResult := execution.io.pipelineExecutionResult
+  bDecodeStage.io.pipelineFetchResult := aFetchStage.io.pipelineFetchResult
+  bDecodeStage.io.stallOnExecuation := cExecutionStage.io.stallOnExecution
+  bDecodeStage.io.stallFromExecuation := cExecutionStage.io.stallFromExecution
+  bDecodeStage.io.regReadData := gpr.io.readData
 
-  writeBack.io.pipelineMemoryResult := memory.io.pipelineMemoryResult
+  cExecutionStage.io.pipelineDecodeResult := bDecodeStage.io.pipelineDecodeResult
+
+  dMemoryStage.io.pipelineExecutionResult := cExecutionStage.io.pipelineExecutionResult
+  dMemoryStage.io.mem <> memory.io.readwrite
+
+  eWriteBackStage.io.pipelineMemoryResult := dMemoryStage.io.pipelineMemoryResult
 }
 
 object MIPS extends App {
-//  (new chisel3.stage.ChiselStage).emitVerilog(new GCD,args.union(Array("-td","v")).distinct)
-  (new chisel3.stage.ChiselStage).emitVerilog(new MIPS,Array("-td","v"))
+  //  (new chisel3.stage.ChiselStage).emitVerilog(new GCD,args.union(Array("-td","v")).distinct)
+  (new chisel3.stage.ChiselStage).emitVerilog(new MIPS, Array("-td", "v"))
 }

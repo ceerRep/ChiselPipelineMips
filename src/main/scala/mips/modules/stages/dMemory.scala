@@ -38,6 +38,17 @@ class dMemory extends Module {
         val stall = Bool()
       }))
     }
+
+    val mem = new Bundle {
+      val pc = Output(SInt(32.W))
+      val addr = Output(UInt(32.W))
+      val readSize = Output(UInt(2.W))
+      val readSign = Output(Bool())
+      val writeSize = Output(UInt(2.W))
+      val writeData = Output(UInt(32.W))
+
+      val readData = Input(UInt(32.W))
+    }
   })
   val dataFromMem = Wire(new BypassRegData)
   io.dataFromMem := dataFromMem
@@ -65,17 +76,15 @@ class dMemory extends Module {
 
   val stall = io.pipelineExecutionResult.bubbled
 
-  val dm = Module(new DataMemoryBlackBox)
-  dm.io.clock := clock
-  dm.io.addr := io.pipelineExecutionResult.dmAddr
-  dm.io.read_size := io.pipelineExecutionResult.controlSignal.dmReadSize
-  dm.io.read_sign_extend := io.pipelineExecutionResult.controlSignal.dmReadSigned
-  dm.io.write_size := Mux(stall, 0.U, io.pipelineExecutionResult.controlSignal.dmWriteSize)
-  dm.io.din := Mux(io.pipelineExecutionResult.controlSignal.dmWriteDataFrom === dm_write_from_reg2,
+  io.mem.addr := io.pipelineExecutionResult.dmAddr
+  io.mem.readSize := io.pipelineExecutionResult.controlSignal.dmReadSize
+  io.mem.readSign := io.pipelineExecutionResult.controlSignal.dmReadSigned
+  io.mem.writeSize := Mux(stall, 0.U, io.pipelineExecutionResult.controlSignal.dmWriteSize)
+  io.mem.writeData := Mux(io.pipelineExecutionResult.controlSignal.dmWriteDataFrom === dm_write_from_reg2,
     regData(1),
     0.U
   )
-  dm.io.pc := io.pipelineExecutionResult.pc
+  io.mem.pc := io.pipelineExecutionResult.pc
 
   val passBubble = io.pipelineExecutionResult.bubbled
 
@@ -95,7 +104,7 @@ class dMemory extends Module {
         pipelineMemoryResult.wRegData := io.pipelineExecutionResult.wRegData
       }.elsewhen(io.pipelineExecutionResult.controlSignal.wRegDataFrom === reg_write_from_dm) {
         pipelineMemoryResult.wRegDataReady := 1.B
-        pipelineMemoryResult.wRegData := dm.io.dout
+        pipelineMemoryResult.wRegData := io.mem.readData
       }.otherwise{
         pipelineMemoryResult.wRegDataReady := 0.B
         pipelineMemoryResult.wRegData := 0x123455AA.U
