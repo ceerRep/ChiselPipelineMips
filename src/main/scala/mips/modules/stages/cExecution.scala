@@ -51,9 +51,10 @@ class cExecution extends Module {
   regData(1) := regReadData2
 
   val mduBusy = Wire(Bool())
-  val suspendFromExecution = (regDataNotReady(0) && io.pipelineDecodeResult.controlSignal.regData1Stage <= reg_stage_exec) ||
+  val suspendFromExecution =
+    (regDataNotReady(0) && io.pipelineDecodeResult.controlSignal.regData1Stage <= reg_stage_exec) ||
     (regDataNotReady(1) && io.pipelineDecodeResult.controlSignal.regData1Stage <= reg_stage_exec) ||
-    mduBusy
+    (mduBusy && io.pipelineDecodeResult.controlSignal.useMdu)
   io.suspendFromExecution := suspendFromExecution
 
   val suspendOnExecution = suspendFromExecution
